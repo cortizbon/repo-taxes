@@ -2,76 +2,225 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly.express as px
+
+DIC_COLORES = {'verde':["#009966"],
+               'ro_am_na':["#FFE9C5", "#F7B261","#D8841C", "#dd722a","#C24C31", "#BC3B26"],
+               'az_verd': ["#CBECEF", "#81D3CD", "#0FB7B3", "#009999"],
+               'ax_viol': ["#D9D9ED", "#2F399B", "#1A1F63", "#262947"],
+               'ofiscal': ["#F9F9F9", "#2635bf"]}
+
+
 
 st.set_page_config(layout="wide")
 
-dian = pd.read_csv('datos_recaudo_const.csv')
-an = dian['Año']
-dian_porc = dian.div(dian['Total'], axis=0)
-dian_porc['Año'] = an
+st.title("Histórico de impuestos")
 
-aggs = {'ACTIVIDAD INTERNA': ['Renta y complementarios /1', 'Renta cuotas',
-       'Retención en la fuente a título de renta /2', 'IVA_IN',
-       'Declaraciones IVA', 'Retención en la fuente a título de IVA',
-       'Timbre nacional', 'G.M.F.', 'Patrimonio /3', 'Riqueza /4',
-       'Impuesto al consumo /5', 'Impuesto gasolina y ACPM',
-       'Impuesto al carbono /6', 'CREE', 'Declaraciones CREE /7',
-       'Retención CREE', 'Impuesto unificado RST (Simple)  /8',
-       'Impuesto de normalización tributaria /9',
-       'Consumo bienes inmuebles /10',
-       'Productos plásticos de un solo uso /11',
-       'Impuestos saludables - Bebidas azucaradas /12',
-       'Impuestos saludables - Comestibles ultraprocesados /13'],
-        'ACTIVIDAD EXTERNA': ['IVA_EX', 'Arancel /14'],
-        'TOTAL': ['Renta y complementarios /1', 'Renta cuotas',
-       'Retención en la fuente a título de renta /2', 'IVA_IN',
-       'Declaraciones IVA', 'Retención en la fuente a título de IVA',
-       'Timbre nacional', 'G.M.F.', 'Patrimonio /3', 'Riqueza /4',
-       'Impuesto al consumo /5', 'Impuesto gasolina y ACPM',
-       'Impuesto al carbono /6', 'CREE', 'Declaraciones CREE /7',
-       'Retención CREE', 'Impuesto unificado RST (Simple)  /8',
-       'Impuesto de normalización tributaria /9',
-       'Consumo bienes inmuebles /10',
-       'Productos plásticos de un solo uso /11',
-       'Impuestos saludables - Bebidas azucaradas /12',
-       'Impuestos saludables - Comestibles ultraprocesados /13', 'IVA_EX', 'Arancel /14']}
-
-st.title("Repo - taxes")
-
-st.divider()
-
-agg = st.selectbox("Seleccione un agregado", ['ACTIVIDAD INTERNA',
-                                              'ACTIVIDAD EXTERNA',
-                                              'TOTAL'])
-
-filtro = dian[aggs[agg]]
-
-if agg == 'TOTAL':
-    sumar_iva = st.checkbox("Sumar IVA")
-    if sumar_iva:
-        filtro['IVA_T'] = filtro['IVA_IN'] + filtro['IVA_EX']
-        dian['IVA_T'] = dian['IVA_IN'] + dian['IVA_EX']
-        dian_porc['IVA_T'] = dian['IVA_T'] / dian['Total']
-
-comp_taxes = st.multiselect("Seleccione uno o varios impuestos: ", filtro.columns)
-
-filtro2 = filtro[comp_taxes]
-
-if len(comp_taxes) == 0:
-    st.warning("Seleccione variables para graficar")
-    st.stop()
-
-fig, ax = plt.subplots(2, 1, figsize=(14, 6))
-
-filtro2['Año'] = dian['Año']
-filtro2 = filtro2.set_index('Año')
-
-filtro2.plot(kind='line', ax=ax[0])
-ax[1].set_ylim(0, 1.1)
-ax[1].axhline(1, color='black', alpha=0.2, ls='--')
-dian_porc.set_index('Año')[comp_taxes].plot(kind='bar', stacked=True, ax=ax[1])
+df = pd.read_csv('recaudo.csv')
+df['Valor (Constantes - 18)'] = (df['Valor (Constantes - 18)'] / 1_000).round(1)
 
 
-st.pyplot(fig)
+
+tab1, tab2 = st.tabs(['General', 'Detalle interno'])
+
+with tab1:
+
+    piv_year = df.groupby(['Año'])['Valor (Constantes - 18)'].sum().reset_index()
+    acum = (piv_year
+                                            .groupby(['Año'])['Valor (Constantes - 18)']
+                                            .sum()
+                                            .reset_index())
+    fig = make_subplots(rows=1, cols=2, x_title='Año',  )
+            
+    fig.add_trace(
+                    go.Scatter(
+                    x=acum['Año'],  # x-axis for forecasted values
+                    y=acum['Valor (Constantes - 18)'],     # The forecasted values
+                    mode='lines+markers',          # Just lines (no markers here)
+                    name='Recaudo', showlegend=True,
+                    line=dict(color=DIC_COLORES['ax_viol'][1], width=2, dash='dash'),
+                    marker=dict(color=DIC_COLORES['ax_viol'][1], size=8),  # Dashed line for forecast
+                ), row=1, col=1
+                )
+
+    piv_recaudo = (df
+                            .groupby(['Año', 'Agregación'])['Valor (Constantes - 18)']
+                            .sum()
+                            .reset_index())
+    piv_recaudo['total'] = piv_recaudo.groupby(['Año'])['Valor (Constantes - 18)'].transform('sum')
+
+    piv_recaudo['%'] = ((piv_recaudo['Valor (Constantes - 18)'] / piv_recaudo['total']) * 100).round(2)
+    dict_rec = {'Actividad interna':DIC_COLORES['az_verd'][2],
+                'Actividad externa':DIC_COLORES['ax_viol'][1],
+                'Por clasificar':DIC_COLORES['ro_am_na'][3]}
+
+    for i, group in piv_recaudo.groupby('Agregación'):
+        fig.add_trace(go.Bar(
+                    x=group['Año'],
+                    y=group['%'],
+                    name=i, marker_color=dict_rec[i],
+                ),  row=1, col=2)
 
 
+    fig.update_layout(barmode='stack', hovermode='x unified')
+    fig.update_layout(width=1000, height=500, legend=dict(orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1), title='Histórico general <br><sup>Cifras en miles de millones de pesos</sup>', yaxis_tickformat='.0f')
+
+
+    st.plotly_chart(fig)  
+
+    rec_int = df[df['Agregación'] == 'Actividad interna']
+    piv_recaudo = (rec_int
+                                .groupby(['Año', 'Impuesto_alt'])['Valor (Constantes - 18)']
+                                .sum()
+                                .reset_index())
+    acum = (piv_recaudo
+                                            .groupby(['Año'])['Valor (Constantes - 18)']
+                                            .sum()
+                                            .reset_index())
+    piv_recaudo['total'] = piv_recaudo.groupby(['Año'])['Valor (Constantes - 18)'].transform('sum')
+
+    piv_recaudo['%'] = ((piv_recaudo['Valor (Constantes - 18)'] / piv_recaudo['total']) * 100).round(2)
+    fig = make_subplots(rows=1, cols=2, x_title='Año',  )
+
+
+            
+    fig.add_trace(
+                    go.Scatter(
+                    x=acum['Año'],  # x-axis for forecasted values
+                    y=acum['Valor (Constantes - 18)'],     # The forecasted values
+                    mode='lines+markers',          # Just lines (no markers here)
+                    name='Recaudo de impuestos de actividad interna', showlegend=True,
+                    line=dict(color=DIC_COLORES['ax_viol'][1], width=2, dash='dash'),
+                    marker=dict(color=DIC_COLORES['ax_viol'][1], size=8),  # Dashed line for forecast
+                ), row=1, col=1
+                )
+    dict_alt = {'IVA':DIC_COLORES['az_verd'][2],
+                'Renta':DIC_COLORES['ax_viol'][1],
+                'Otros':DIC_COLORES['ro_am_na'][3]}
+
+    for i, group in piv_recaudo.groupby('Impuesto_alt'):
+                    fig.add_trace(go.Bar(
+                        x=group['Año'],
+                        y=group['%'],
+                        name=i, marker_color=dict_alt[i]
+                    ),  row=1, col=2)
+
+
+    fig.update_layout(barmode='stack', hovermode='x unified')
+    fig.update_layout(width=1000, height=500, legend=dict(orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1), title='Histórico interno <br><sup>Cifras en miles de millones de pesos</sup>', yaxis_tickformat='.0f')
+
+
+    st.plotly_chart(fig)
+
+    rec_ext = df[df['Agregación'] == 'Actividad externa']
+    piv_recaudo = (rec_ext
+                                .groupby(['Año', 'Impuesto específico'])['Valor (Constantes - 18)']
+                                .sum()
+                                .reset_index())
+    acum = (piv_recaudo
+                                            .groupby(['Año'])['Valor (Constantes - 18)']
+                                            .sum()
+                                            .reset_index())
+    piv_recaudo['total'] = piv_recaudo.groupby(['Año'])['Valor (Constantes - 18)'].transform('sum')
+
+    piv_recaudo['%'] = ((piv_recaudo['Valor (Constantes - 18)'] / piv_recaudo['total']) * 100).round(2)
+    fig = make_subplots(rows=1, cols=2, x_title='Año',  )
+            
+    fig.add_trace(
+                    go.Scatter(
+                    x=acum['Año'],  # x-axis for forecasted values
+                    y=acum['Valor (Constantes - 18)'],     # The forecasted values
+                    mode='lines+markers',          # Just lines (no markers here)
+                    name='Recaudo acumulado', showlegend=True,
+                    line=dict(color=DIC_COLORES['ax_viol'][1], width=2, dash='dash'),
+                    marker=dict(color=DIC_COLORES['ax_viol'][1], size=8),  # Dashed line for forecast
+                ), row=1, col=1
+                )
+    dict_alt = {'IVA_ext':DIC_COLORES['ro_am_na'][3],
+                'Arancel':DIC_COLORES['az_verd'][2]}
+    for i, group in piv_recaudo.groupby('Impuesto específico'):
+                    fig.add_trace(go.Bar(
+                        x=group['Año'],
+                        y=group['%'],
+                        name=i, marker_color=dict_alt[i]
+                    ),  row=1, col=2)
+
+
+    fig.update_layout(barmode='stack', hovermode='x unified')
+    fig.update_layout(width=1000, height=500, legend=dict(orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1), title='Histórico externo <br><sup>Cifras en miles de millones de pesos</sup>', yaxis_tickformat='.0f')
+
+
+    st.plotly_chart(fig)
+
+with tab2:
+
+    rec_int = df[df['Agregación'] == 'Actividad interna']
+    piv_recaudo = (rec_int
+                                .groupby(['Año', 'Impuesto'])['Valor (Constantes - 18)']
+                                .sum()
+                                .reset_index())
+    acum = (piv_recaudo
+                                            .groupby(['Año'])['Valor (Constantes - 18)']
+                                            .sum()
+                                            .reset_index())
+    piv_recaudo['total'] = piv_recaudo.groupby(['Año'])['Valor (Constantes - 18)'].transform('sum')
+
+    piv_recaudo['%'] = ((piv_recaudo['Valor (Constantes - 18)'] / piv_recaudo['total']) * 100).round(2)
+    fig = make_subplots(rows=1, cols=2, x_title='Año',  )
+            
+    fig.add_trace(
+                    go.Scatter(
+                    x=acum['Año'],  # x-axis for forecasted values
+                    y=acum['Valor (Constantes - 18)'],     # The forecasted values
+                    mode='lines+markers',          # Just lines (no markers here)
+                    name='Recaudo acumulado', showlegend=True,
+                    line=dict(color=DIC_COLORES['ax_viol'][1], width=2, dash='dash'),
+                    marker=dict(color=DIC_COLORES['ax_viol'][1], size=8),  # Dashed line for forecast
+                ), row=1, col=1
+                )
+    dict_alt = {'IVA':DIC_COLORES['az_verd'][2],
+                'Renta':DIC_COLORES['ax_viol'][1]}
+    for i, group in piv_recaudo.groupby('Impuesto'):
+        if i in ['Renta', 'IVA']:
+                    fig.add_trace(go.Bar(
+                        x=group['Año'],
+                        y=group['%'],
+                        name=i, marker_color=dict_alt[i]
+                    ),  row=1, col=2)
+        else:
+            fig.add_trace(go.Bar(
+                        x=group['Año'],
+                        y=group['%'],
+                        name=i
+                    ),  row=1, col=2)
+
+
+
+    fig.update_layout(barmode='stack', hovermode='x unified')
+    fig.update_layout(width=1000, height=500, showlegend=False, title='Histórico interno <br><sup>Cifras en miles de millones de pesos</sup>', yaxis_tickformat='.0f')
+
+
+    st.plotly_chart(fig)
+
+    year = st.select_slider("Seleccione un año", rec_int['Año'].unique().tolist())
+
+    rec_int = rec_int[rec_int['Año'] == year]
+    fig = px.treemap(rec_int, path=[px.Constant("Recaudo interno"), "Impuesto"], values='Valor (Constantes - 18)')
+    fig.update_layout(width=1000, height=500, showlegend=False, title='Matriz de composición del recaudo interno<br><sup>Cifras en miles de millones de pesos</sup>', yaxis_tickformat='.0f')
+
+
+    st.plotly_chart(fig)
