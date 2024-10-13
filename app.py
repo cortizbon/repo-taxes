@@ -18,7 +18,7 @@ st.set_page_config(layout="wide")
 
 st.title("Histórico de impuestos")
 
-df = pd.read_csv('recaudo.csv')
+df = pd.read_csv('datasets/recaudo.csv')
 df['Valor (Constantes - 18)'] = (df['Valor (Constantes - 18)'] / 1_000).round(1)
 
 
