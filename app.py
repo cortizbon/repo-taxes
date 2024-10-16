@@ -76,7 +76,7 @@ with tab1:
 
     rec_int = df[df['Agregación'] == 'Actividad interna']
     piv_recaudo = (rec_int
-                                .groupby(['Año', 'Impuesto específico'])['Valor (Constantes - 18)']
+                                .groupby(['Año', 'Impuesto_alt'])['Valor (Constantes - 18)']
                                 .sum()
                                 .reset_index())
     acum = (piv_recaudo
@@ -104,7 +104,7 @@ with tab1:
                 'Renta':DIC_COLORES['ax_viol'][1],
                 'Otros':DIC_COLORES['ro_am_na'][3]}
 
-    for i, group in piv_recaudo.groupby('Impuesto específico'):
+    for i, group in piv_recaudo.groupby('Impuesto_alt'):
                     fig.add_trace(go.Bar(
                         x=group['Año'],
                         y=group['%'],
@@ -170,7 +170,7 @@ with tab2:
 
     rec_int = df[df['Agregación'] == 'Actividad interna']
     piv_recaudo = (rec_int
-                                .groupby(['Año', 'Impuesto'])['Valor (Constantes - 18)']
+                                .groupby(['Año', 'Impuesto específico'])['Valor (Constantes - 18)']
                                 .sum()
                                 .reset_index())
     acum = (piv_recaudo
@@ -194,7 +194,7 @@ with tab2:
                 )
     dict_alt = {'IVA':DIC_COLORES['az_verd'][2],
                 'Renta':DIC_COLORES['ax_viol'][1]}
-    for i, group in piv_recaudo.groupby('Impuesto'):
+    for i, group in piv_recaudo.groupby('Impuesto específico'):
         if i in ['Renta', 'IVA']:
                     fig.add_trace(go.Bar(
                         x=group['Año'],
